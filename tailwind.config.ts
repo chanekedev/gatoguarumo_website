@@ -1,8 +1,6 @@
 import type { Config } from 'tailwindcss';
 
-// NOTE: placeholder hex values. Swap these for the exact colors sampled from
-// the Gato Guarumo logo/brand sheet once available, then this is the only
-// file that needs to change — everything else consumes `brand-*` tokens.
+// Official Gato Guarumo brand colors.
 const config: Config = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
@@ -10,14 +8,14 @@ const config: Config = {
       colors: {
         brand: {
           green: {
-            light: '#6FBF3F',
-            DEFAULT: '#3F7D20',
-            dark: '#2C5916',
+            light: '#59C377',
+            DEFAULT: '#00A32E',
+            dark: '#007220',
           },
           yellow: {
-            light: '#FFE066',
-            DEFAULT: '#FFC800',
-            dark: '#E0A800',
+            light: '#FFEB59',
+            DEFAULT: '#FFE000',
+            dark: '#B39D00',
           },
         },
         ink: '#0F1210',
