@@ -26,7 +26,18 @@ export async function updateSession(request: NextRequest) {
 
   // Refreshes the session cookie (if expired) before it reaches Server
   // Components — required for @supabase/ssr's cookie-based auth to work.
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { pathname } = request.nextUrl;
+  const isUnderSegment = (segment: string) => pathname === segment || pathname.startsWith(`${segment}/`);
+  const requiresAuth = isUnderSegment('/account') || isUnderSegment('/vendor');
+  if (requiresAuth && !user) {
+    const loginUrl = new URL('/auth/login', request.url);
+    loginUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
 
   return response;
 }

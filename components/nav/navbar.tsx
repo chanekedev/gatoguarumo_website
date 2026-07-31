@@ -4,10 +4,12 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Menu, Search, ShoppingBag, User, X } from 'lucide-react';
+import { LogOut, Menu, Search, ShoppingBag, User, X } from 'lucide-react';
 import { Logo } from '@/components/brand/logo';
+import { signOut } from '@/app/auth/actions';
 import { useCartStore } from '@/store/cart-store';
 import { useFilterStore } from '@/store/filter-store';
+import type { CurrentUser } from '@/lib/queries/auth';
 
 const NAV_LINKS = [
   { href: '/shop', label: 'Shop' },
@@ -16,7 +18,7 @@ const NAV_LINKS = [
   { href: '/shop?category=apparel', label: 'Apparel' },
 ];
 
-export function Navbar() {
+export function Navbar({ user }: { user: CurrentUser | null }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const router = useRouter();
@@ -61,7 +63,7 @@ export function Navbar() {
             <Search className="h-5 w-5" />
           </button>
           <Link
-            href="/account"
+            href={user ? '/account' : '/auth/login'}
             aria-label="Account"
             className="hidden h-9 w-9 items-center justify-center rounded-full text-ink/70 hover:bg-ink/5 sm:flex"
           >
@@ -131,13 +133,52 @@ export function Navbar() {
                   {link.label}
                 </Link>
               ))}
-              <Link
-                href="/account"
-                onClick={() => setMobileOpen(false)}
-                className="rounded-lg px-2 py-2 text-sm font-semibold text-ink/70 hover:bg-ink/5"
-              >
-                Account
-              </Link>
+              {user ? (
+                <>
+                  <Link
+                    href="/account"
+                    onClick={() => setMobileOpen(false)}
+                    className="rounded-lg px-2 py-2 text-sm font-semibold text-ink/70 hover:bg-ink/5"
+                  >
+                    Account
+                  </Link>
+                  {(user.role === 'vendor' || user.role === 'admin') && (
+                    <Link
+                      href="/vendor/dashboard"
+                      onClick={() => setMobileOpen(false)}
+                      className="rounded-lg px-2 py-2 text-sm font-semibold text-ink/70 hover:bg-ink/5"
+                    >
+                      Vendor Dashboard
+                    </Link>
+                  )}
+                  <form action={signOut}>
+                    <button
+                      type="submit"
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm font-semibold text-ink/70 hover:bg-ink/5"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign out
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/auth/login"
+                    onClick={() => setMobileOpen(false)}
+                    className="rounded-lg px-2 py-2 text-sm font-semibold text-ink/70 hover:bg-ink/5"
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href="/auth/register"
+                    onClick={() => setMobileOpen(false)}
+                    className="rounded-lg px-2 py-2 text-sm font-semibold text-ink/70 hover:bg-ink/5"
+                  >
+                    Create account
+                  </Link>
+                </>
+              )}
             </div>
           </motion.nav>
         )}

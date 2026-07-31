@@ -1,0 +1,148 @@
+import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
+import type Stripe from 'stripe';
+import { getStripe } from '@/lib/stripe/client';
+import { createAdminClient } from '@/lib/supabase/admin';
+
+interface CartEntry {
+  p: string; // productId
+  v: string | null; // variantId
+  ven: string; // vendorId
+  q: number; // quantity
+  pr: number; // unit price
+}
+
+export async function POST(request: Request) {
+  const body = await request.text();
+  const signature = headers().get('stripe-signature');
+
+  if (!process.env.STRIPE_WEBHOOK_SECRET || !signature) {
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 });
+  }
+
+  let event: Stripe.Event;
+  try {
+    const stripe = getStripe();
+    event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Invalid signature';
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+
+  if (event.type !== 'checkout.session.completed') {
+    return NextResponse.json({ received: true });
+  }
+
+  const session = event.data.object as Stripe.Checkout.Session;
+  const buyerId = session.metadata?.buyer_id;
+  const cartJson = session.metadata?.cart;
+  if (!buyerId || !cartJson) return NextResponse.json({ received: true });
+
+  const cartEntries: CartEntry[] = JSON.parse(cartJson);
+  const supabase = createAdminClient();
+
+  // Skip if this session was already processed (webhook retries).
+  const { data: existingOrder } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('stripe_checkout_session_id', session.id)
+    .maybeSingle();
+  if (existingOrder) return NextResponse.json({ received: true });
+
+  let shippingAddressId: string | null = null;
+  const shipping = session.shipping_details;
+  if (shipping?.address) {
+    const { data: address } = await supabase
+      .from('addresses')
+      .insert({
+        profile_id: buyerId,
+        type: 'shipping',
+        full_name: shipping.name ?? 'Customer',
+        line1: shipping.address.line1 ?? '',
+        line2: shipping.address.line2,
+        city: shipping.address.city ?? '',
+        state: shipping.address.state,
+        postal_code: shipping.address.postal_code ?? '',
+        country: shipping.address.country ?? 'US',
+      })
+      .select('id')
+      .single();
+    shippingAddressId = address?.id ?? null;
+  }
+
+  const orderNumber = `GG-${Date.now().toString(36).toUpperCase()}`;
+  const { data: order } = await supabase
+    .from('orders')
+    .insert({
+      order_number: orderNumber,
+      buyer_id: buyerId,
+      status: 'paid',
+      payment_status: 'paid',
+      subtotal: (session.amount_subtotal ?? 0) / 100,
+      tax_total: (session.total_details?.amount_tax ?? 0) / 100,
+      shipping_total: (session.total_details?.amount_shipping ?? 0) / 100,
+      total: (session.amount_total ?? 0) / 100,
+      currency: session.currency ?? 'usd',
+      shipping_address_id: shippingAddressId,
+      stripe_payment_intent_id: typeof session.payment_intent === 'string' ? session.payment_intent : null,
+      stripe_checkout_session_id: session.id,
+      placed_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single();
+
+  if (!order) return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
+
+  const byVendor = new Map<string, CartEntry[]>();
+  for (const entry of cartEntries) {
+    const group = byVendor.get(entry.ven) ?? [];
+    group.push(entry);
+    byVendor.set(entry.ven, group);
+  }
+
+  for (const [vendorId, entries] of byVendor) {
+    const { data: vendor } = await supabase.from('vendors').select('commission_rate').eq('id', vendorId).maybeSingle();
+    const commissionRate = vendor?.commission_rate ?? 0.1;
+    const subtotal = entries.reduce((sum, e) => sum + e.pr * e.q, 0);
+    const commissionAmount = subtotal * commissionRate;
+
+    const { data: orderVendor } = await supabase
+      .from('order_vendors')
+      .insert({
+        order_id: order.id,
+        vendor_id: vendorId,
+        subtotal,
+        commission_rate: commissionRate,
+        commission_amount: commissionAmount,
+        vendor_payout_amount: subtotal - commissionAmount,
+        status: 'pending',
+      })
+      .select('id')
+      .single();
+
+    if (!orderVendor) continue;
+
+    for (const entry of entries) {
+      const { data: product } = await supabase.from('products').select('name').eq('id', entry.p).maybeSingle();
+      let variantName: string | null = null;
+      if (entry.v) {
+        const { data: variant } = await supabase.from('product_variants').select('name').eq('id', entry.v).maybeSingle();
+        variantName = variant?.name ?? null;
+      }
+
+      await supabase.from('order_items').insert({
+        order_id: order.id,
+        order_vendor_id: orderVendor.id,
+        product_id: entry.p,
+        variant_id: entry.v,
+        product_name_snapshot: product?.name ?? 'Product',
+        variant_name_snapshot: variantName,
+        unit_price: entry.pr,
+        quantity: entry.q,
+        line_total: entry.pr * entry.q,
+      });
+    }
+  }
+
+  return NextResponse.json({ received: true });
+}

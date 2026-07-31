@@ -17,6 +17,7 @@ export interface ProductCardData {
   imageUrl: string | null;
   vendorId: string;
   vendorName: string;
+  vendorSlug: string;
   avgRating: number;
   reviewCount: number;
   effects: { name: string; slug: string; intensity: number }[];
