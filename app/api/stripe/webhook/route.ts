@@ -29,14 +29,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  if (event.type !== 'checkout.session.completed') {
-    return NextResponse.json({ received: true });
+  if (event.type === 'checkout.session.completed') {
+    await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+  } else if (event.type === 'account.updated') {
+    await handleAccountUpdated(event.data.object as Stripe.Account);
   }
 
-  const session = event.data.object as Stripe.Checkout.Session;
+  return NextResponse.json({ received: true });
+}
+
+async function handleAccountUpdated(account: Stripe.Account) {
+  const supabase = createAdminClient();
+  await supabase
+    .from('vendors')
+    .update({ stripe_onboarding_complete: Boolean(account.details_submitted && account.charges_enabled) })
+    .eq('stripe_account_id', account.id);
+}
+
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const buyerId = session.metadata?.buyer_id;
   const cartJson = session.metadata?.cart;
-  if (!buyerId || !cartJson) return NextResponse.json({ received: true });
+  if (!buyerId || !cartJson) return;
 
   const cartEntries: CartEntry[] = JSON.parse(cartJson);
   const supabase = createAdminClient();
@@ -47,7 +60,7 @@ export async function POST(request: Request) {
     .select('id')
     .eq('stripe_checkout_session_id', session.id)
     .maybeSingle();
-  if (existingOrder) return NextResponse.json({ received: true });
+  if (existingOrder) return;
 
   let shippingAddressId: string | null = null;
   const shipping = session.shipping_details;
@@ -91,7 +104,7 @@ export async function POST(request: Request) {
     .select('id')
     .single();
 
-  if (!order) return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
+  if (!order) return;
 
   const byVendor = new Map<string, CartEntry[]>();
   for (const entry of cartEntries) {
@@ -101,10 +114,15 @@ export async function POST(request: Request) {
   }
 
   for (const [vendorId, entries] of byVendor) {
-    const { data: vendor } = await supabase.from('vendors').select('commission_rate').eq('id', vendorId).maybeSingle();
+    const { data: vendor } = await supabase
+      .from('vendors')
+      .select('commission_rate, stripe_account_id')
+      .eq('id', vendorId)
+      .maybeSingle();
     const commissionRate = vendor?.commission_rate ?? 0.1;
     const subtotal = entries.reduce((sum, e) => sum + e.pr * e.q, 0);
     const commissionAmount = subtotal * commissionRate;
+    const payoutAmount = subtotal - commissionAmount;
 
     const { data: orderVendor } = await supabase
       .from('order_vendors')
@@ -114,7 +132,7 @@ export async function POST(request: Request) {
         subtotal,
         commission_rate: commissionRate,
         commission_amount: commissionAmount,
-        vendor_payout_amount: subtotal - commissionAmount,
+        vendor_payout_amount: payoutAmount,
         status: 'pending',
       })
       .select('id')
@@ -142,7 +160,27 @@ export async function POST(request: Request) {
         line_total: entry.pr * entry.q,
       });
     }
-  }
 
-  return NextResponse.json({ received: true });
+    // Move the vendor's share to their connected Stripe account. If they
+    // haven't finished Connect onboarding yet, this fails gracefully and
+    // the order stays recorded with order_vendors.status = 'pending' for
+    // manual payout once they're onboarded.
+    if (vendor?.stripe_account_id) {
+      try {
+        const stripe = getStripe();
+        const transfer = await stripe.transfers.create({
+          amount: Math.round(payoutAmount * 100),
+          currency: session.currency ?? 'usd',
+          destination: vendor.stripe_account_id,
+          transfer_group: order.id,
+        });
+        await supabase
+          .from('order_vendors')
+          .update({ stripe_transfer_id: transfer.id, status: 'confirmed' })
+          .eq('id', orderVendor.id);
+      } catch (err) {
+        console.error(`Transfer failed for vendor ${vendorId}`, err instanceof Error ? err.message : err);
+      }
+    }
+  }
 }

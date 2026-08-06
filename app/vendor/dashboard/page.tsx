@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/queries/auth';
 import { getVendorForOwner } from '@/lib/queries/vendors';
 import { getVendorStats, getOrdersForVendor } from '@/lib/queries/orders';
 import { getProductsForVendorDashboard } from '@/lib/queries/products';
+import { StripeConnectButton } from '@/components/vendor/stripe-connect-button';
 import { formatPrice } from '@/lib/utils';
 
 export const metadata: Metadata = { title: 'Vendor Dashboard' };
@@ -56,6 +57,15 @@ export default async function VendorDashboardPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <h1 className="font-display text-3xl font-bold text-ink">{vendor.business_name} Dashboard</h1>
+
+      {!vendor.stripe_onboarding_complete && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-yellow-dark/40 bg-brand-yellow/10 p-4">
+          <p className="text-sm text-ink">
+            You haven't connected Stripe yet — payouts for your sales are held until you finish onboarding.
+          </p>
+          <StripeConnectButton />
+        </div>
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard icon={DollarSign} label="Total sales" value={formatPrice(stats.totalSales)} />
