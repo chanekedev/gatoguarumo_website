@@ -48,3 +48,16 @@ export async function signOut() {
   revalidatePath('/', 'layout');
   redirect('/');
 }
+
+export async function requestPasswordReset(formData: FormData) {
+  const email = String(formData.get('email') ?? '');
+
+  const supabase = createClient();
+  await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/auth/reset-password`,
+  });
+
+  // Always redirect to the same confirmation, whether or not the email
+  // exists — don't leak which emails have accounts.
+  redirect('/auth/check-email');
+}

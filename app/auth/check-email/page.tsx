@@ -6,7 +6,7 @@ export default function CheckEmailPage() {
       <Mail className="h-10 w-10 text-brand-green" />
       <h1 className="font-display text-2xl font-bold text-ink">Check your email</h1>
       <p className="text-sm text-ink/60">
-        We sent you a confirmation link. Click it to activate your account, then log in.
+        If an account exists for that email, we sent a link — click it to continue.
       </p>
     </main>
   );
