@@ -30,25 +30,31 @@ export async function POST() {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
   let accountId = vendor.stripe_account_id;
 
-  if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: 'express',
-      email: user.email ?? undefined,
-      capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
-      },
+  try {
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        email: user.email ?? undefined,
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+        },
+      });
+      accountId = account.id;
+      await supabase.from('vendors').update({ stripe_account_id: accountId }).eq('id', vendor.id);
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${siteUrl}/vendor/dashboard?stripe=refresh`,
+      return_url: `${siteUrl}/vendor/dashboard?stripe=return`,
+      type: 'account_onboarding',
     });
-    accountId = account.id;
-    await supabase.from('vendors').update({ stripe_account_id: accountId }).eq('id', vendor.id);
+
+    return NextResponse.json({ url: accountLink.url });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to start Stripe onboarding.';
+    console.error('Stripe onboarding error:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const accountLink = await stripe.accountLinks.create({
-    account: accountId,
-    refresh_url: `${siteUrl}/vendor/dashboard?stripe=refresh`,
-    return_url: `${siteUrl}/vendor/dashboard?stripe=return`,
-    type: 'account_onboarding',
-  });
-
-  return NextResponse.json({ url: accountLink.url });
 }
