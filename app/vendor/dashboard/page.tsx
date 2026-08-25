@@ -7,6 +7,7 @@ import { getVendorForOwner } from '@/lib/queries/vendors';
 import { getVendorStats, getOrdersForVendor } from '@/lib/queries/orders';
 import { getProductsForVendorDashboard } from '@/lib/queries/products';
 import { StripeConnectButton } from '@/components/vendor/stripe-connect-button';
+import { syncVendorOnboardingStatus } from '@/lib/stripe/vendor-onboarding';
 import { formatPrice } from '@/lib/utils';
 
 export const metadata: Metadata = { title: 'Vendor Dashboard' };
@@ -48,17 +49,18 @@ export default async function VendorDashboardPage() {
     );
   }
 
-  const [stats, products, orders] = await Promise.all([
+  const [stats, products, orders, onboardingComplete] = await Promise.all([
     getVendorStats(vendor.id),
     getProductsForVendorDashboard(vendor.id),
     getOrdersForVendor(vendor.id),
+    syncVendorOnboardingStatus(vendor),
   ]);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <h1 className="font-display text-3xl font-bold text-ink">{vendor.business_name} Dashboard</h1>
 
-      {!vendor.stripe_onboarding_complete && (
+      {!onboardingComplete && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-yellow-dark/40 bg-brand-yellow/10 p-4">
           <p className="text-sm text-ink">
             You haven't connected Stripe yet — payouts for your sales are held until you finish onboarding.
