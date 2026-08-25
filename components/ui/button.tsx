@@ -1,13 +1,7 @@
-import { forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'outline';
 export type ButtonSize = 'sm' | 'md' | 'lg';
-
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-}
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary: 'bg-brand-green text-white hover:bg-brand-green-dark',
@@ -30,10 +24,3 @@ export function buttonClasses(variant: ButtonVariant = 'primary', size: ButtonSi
     className
   );
 }
-
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'primary', size = 'md', ...props }, ref) => {
-    return <button ref={ref} className={buttonClasses(variant, size, className)} {...props} />;
-  }
-);
-Button.displayName = 'Button';

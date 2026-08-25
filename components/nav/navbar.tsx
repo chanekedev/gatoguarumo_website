@@ -8,7 +8,6 @@ import { LogOut, Menu, Search, ShoppingBag, User, X } from 'lucide-react';
 import { Logo } from '@/components/brand/logo';
 import { signOut } from '@/app/auth/actions';
 import { useCartStore } from '@/store/cart-store';
-import { useFilterStore } from '@/store/filter-store';
 import type { CurrentUser } from '@/lib/queries/auth';
 
 const NAV_LINKS = [
@@ -24,13 +23,11 @@ export function Navbar({ user }: { user: CurrentUser | null }) {
   const router = useRouter();
   const cartCount = useCartStore((state) => state.items.reduce((sum, item) => sum + item.quantity, 0));
   const openCart = useCartStore((state) => state.open);
-  const setQuery = useFilterStore((state) => state.setQuery);
 
   function handleSearchSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const query = new FormData(e.currentTarget).get('q');
     if (typeof query === 'string') {
-      setQuery(query);
       router.push(`/shop?q=${encodeURIComponent(query)}`);
       setSearchOpen(false);
     }

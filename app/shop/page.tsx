@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 import { ProductCard } from '@/components/product/product-card';
 import { ShopFilters } from '@/components/shop/shop-filters';
-import { getProducts } from '@/lib/queries/products';
+import { getProducts, type SortOption } from '@/lib/queries/products';
 import { getCategories } from '@/lib/queries/categories';
 import { getEffects } from '@/lib/queries/effects';
-import type { SortOption } from '@/store/filter-store';
 
 export const metadata: Metadata = { title: 'Shop' };
 

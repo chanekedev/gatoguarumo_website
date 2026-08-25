@@ -34,7 +34,6 @@ export async function getOrdersForBuyer(buyerId: string): Promise<BuyerOrderSumm
 
 export interface VendorOrderSummary {
   id: string;
-  orderId: string;
   orderNumber: string;
   status: string;
   subtotal: number;
@@ -69,7 +68,6 @@ export async function getOrdersForVendor(vendorId: string): Promise<VendorOrderS
 
   return (data ?? []).map((row) => ({
     id: row.id,
-    orderId: row.id,
     orderNumber: row.order?.order_number ?? '—',
     status: row.status,
     subtotal: row.subtotal,

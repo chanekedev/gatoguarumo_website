@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import type { ProductCardData } from '@/components/product/product-card';
-import type { SortOption } from '@/store/filter-store';
+
+export type SortOption = 'newest' | 'price_asc' | 'price_desc' | 'best_selling' | 'top_rated';
 
 interface ProductRow {
   id: string;
@@ -56,8 +57,6 @@ export interface ShopFilters {
   categorySlug?: string;
   vendorSlug?: string;
   effectSlugs?: string[];
-  priceMin?: number;
-  priceMax?: number;
   sort?: SortOption;
   query?: string;
   limit?: number;
@@ -99,8 +98,6 @@ export async function getProducts(filters: ShopFilters = {}): Promise<ProductCar
     query = query.in('id', productIds);
   }
 
-  if (filters.priceMin !== undefined) query = query.gte('base_price', filters.priceMin);
-  if (filters.priceMax !== undefined) query = query.lte('base_price', filters.priceMax);
   if (filters.query) query = query.textSearch('search_vector', filters.query, { type: 'websearch' });
 
   const sort = SORT_MAP[filters.sort ?? 'newest'];

@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@stripe/stripe-js':
-        specifier: ^4.4.0
-        version: 4.10.0
       '@supabase/ssr':
         specifier: ^0.4.0
         version: 0.4.1(@supabase/supabase-js@2.45.4)
@@ -238,10 +235,6 @@ packages:
 
   '@rushstack/eslint-patch@1.16.1':
     resolution: {integrity: sha512-TvZbIpeKqGQQ7X0zSCvPH9riMSFQFSggnfBjFZ1mEoILW+UuXCKwOoPcgjMwiUtRqFZ8jWhPJc4um14vC6I4ag==}
-
-  '@stripe/stripe-js@4.10.0':
-    resolution: {integrity: sha512-KrMOL+sH69htCIXCaZ4JluJ35bchuCCznyPyrbN8JXSGQfwBI1SuIEMZNwvy8L8ykj29t6sa5BAAiL7fNoLZ8A==}
-    engines: {node: '>=12.16'}
 
   '@supabase/auth-js@2.65.0':
     resolution: {integrity: sha512-+wboHfZufAE2Y612OsKeVP4rVOeGZzzMLD/Ac3HrTQkkY4qXNjI6Af9gtmxwccE5nFvTiF114FEbIQ1hRq5uUw==}
@@ -2102,8 +2095,6 @@ snapshots:
   '@rtsao/scc@1.1.0': {}
 
   '@rushstack/eslint-patch@1.16.1': {}
-
-  '@stripe/stripe-js@4.10.0': {}
 
   '@supabase/auth-js@2.65.0':
     dependencies:

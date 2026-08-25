@@ -8,7 +8,6 @@
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser + server Supabase clients | Supabase → Project Settings → API → `anon public` (or `publishable`) key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Stripe webhook only (`lib/supabase/admin.ts`) — bypasses RLS | Supabase → Project Settings → API → `service_role` (or `secret`) key. **Server-only. Never prefix with `NEXT_PUBLIC_`, never expose to the browser.** |
 | `NEXT_PUBLIC_SITE_URL` | Auth redirects, Stripe success/cancel URLs | Your deployed URL, e.g. `https://gatoguarumo.com` |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Reserved for future client-side Stripe.js use | Stripe → Developers → API keys |
 | `STRIPE_SECRET_KEY` | Checkout Session + Connect account creation, Transfers | Stripe → Developers → API keys |
 | `STRIPE_WEBHOOK_SECRET` | Verifies webhook signatures | Stripe → Developers → Webhooks → your endpoint → Signing secret |
 
