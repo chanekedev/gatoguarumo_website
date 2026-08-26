@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe/client';
 import { createClient } from '@/lib/supabase/server';
+import { CURRENCY, SHIPPING_COUNTRIES } from '@/lib/config/locale';
 
 interface CheckoutItem {
   productId: string;
@@ -44,13 +45,13 @@ export async function POST(request: Request) {
     customer_email: user.email ?? undefined,
     line_items: items.map((item) => ({
       price_data: {
-        currency: 'usd',
+        currency: CURRENCY,
         product_data: { name: item.variantName ? `${item.name} — ${item.variantName}` : item.name },
         unit_amount: Math.round(item.price * 100),
       },
       quantity: item.quantity,
     })),
-    shipping_address_collection: { allowed_countries: ['US', 'CA'] },
+    shipping_address_collection: { allowed_countries: [...SHIPPING_COUNTRIES] },
     success_url: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${siteUrl}/checkout`,
     metadata: {

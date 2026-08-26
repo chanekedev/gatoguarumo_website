@@ -4,6 +4,7 @@ import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe/client';
 import { canReceiveTransfers } from '@/lib/stripe/vendor-onboarding';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { CURRENCY, SHIPPING_COUNTRIES } from '@/lib/config/locale';
 
 interface CartEntry {
   p: string; // productId
@@ -77,7 +78,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         city: shipping.address.city ?? '',
         state: shipping.address.state,
         postal_code: shipping.address.postal_code ?? '',
-        country: shipping.address.country ?? 'US',
+        country: shipping.address.country ?? SHIPPING_COUNTRIES[0],
       })
       .select('id')
       .single();
@@ -96,7 +97,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       tax_total: (session.total_details?.amount_tax ?? 0) / 100,
       shipping_total: (session.total_details?.amount_shipping ?? 0) / 100,
       total: (session.amount_total ?? 0) / 100,
-      currency: session.currency ?? 'usd',
+      currency: session.currency ?? CURRENCY,
       shipping_address_id: shippingAddressId,
       stripe_payment_intent_id: typeof session.payment_intent === 'string' ? session.payment_intent : null,
       stripe_checkout_session_id: session.id,
@@ -171,7 +172,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         const stripe = getStripe();
         const transfer = await stripe.transfers.create({
           amount: Math.round(payoutAmount * 100),
-          currency: session.currency ?? 'usd',
+          currency: session.currency ?? CURRENCY,
           destination: vendor.stripe_account_id,
           transfer_group: order.id,
         });
