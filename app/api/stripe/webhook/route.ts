@@ -31,10 +31,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  if (event.type === 'checkout.session.completed') {
-    await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
-  } else if (event.type === 'account.updated') {
-    await handleAccountUpdated(event.data.object as Stripe.Account);
+  // Errors must surface as a non-2xx so Stripe retries the delivery. Swallowing
+  // them would mean a customer is charged with no order ever recorded, and no
+  // signal that anything went wrong.
+  try {
+    if (event.type === 'checkout.session.completed') {
+      await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+    } else if (event.type === 'account.updated') {
+      await handleAccountUpdated(event.data.object as Stripe.Account);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Webhook handler failed';
+    console.error(`Webhook ${event.type} failed:`, message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });
@@ -51,23 +60,28 @@ async function handleAccountUpdated(account: Stripe.Account) {
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const buyerId = session.metadata?.buyer_id;
   const cartJson = session.metadata?.cart;
-  if (!buyerId || !cartJson) return;
+  if (!buyerId || !cartJson) {
+    throw new Error(
+      `Session ${session.id} is missing metadata (buyer_id: ${Boolean(buyerId)}, cart: ${Boolean(cartJson)})`
+    );
+  }
 
   const cartEntries: CartEntry[] = JSON.parse(cartJson);
   const supabase = createAdminClient();
 
   // Skip if this session was already processed (webhook retries).
-  const { data: existingOrder } = await supabase
+  const { data: existingOrder, error: lookupError } = await supabase
     .from('orders')
     .select('id')
     .eq('stripe_checkout_session_id', session.id)
     .maybeSingle();
+  if (lookupError) throw new Error(`Order lookup failed: ${lookupError.message}`);
   if (existingOrder) return;
 
   let shippingAddressId: string | null = null;
   const shipping = session.shipping_details;
   if (shipping?.address) {
-    const { data: address } = await supabase
+    const { data: address, error: addressError } = await supabase
       .from('addresses')
       .insert({
         profile_id: buyerId,
@@ -82,11 +96,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       })
       .select('id')
       .single();
+    // A missing address shouldn't lose the order — record it and move on.
+    if (addressError) console.error(`Shipping address insert failed: ${addressError.message}`);
     shippingAddressId = address?.id ?? null;
   }
 
   const orderNumber = `GG-${Date.now().toString(36).toUpperCase()}`;
-  const { data: order } = await supabase
+  const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert({
       order_number: orderNumber,
@@ -106,7 +122,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     .select('id')
     .single();
 
-  if (!order) return;
+  if (orderError || !order) {
+    throw new Error(`Order insert failed: ${orderError?.message ?? 'no row returned'}`);
+  }
 
   const byVendor = new Map<string, CartEntry[]>();
   for (const entry of cartEntries) {
@@ -126,7 +144,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     const commissionAmount = subtotal * commissionRate;
     const payoutAmount = subtotal - commissionAmount;
 
-    const { data: orderVendor } = await supabase
+    const { data: orderVendor, error: orderVendorError } = await supabase
       .from('order_vendors')
       .insert({
         order_id: order.id,
@@ -140,7 +158,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       .select('id')
       .single();
 
-    if (!orderVendor) continue;
+    if (orderVendorError || !orderVendor) {
+      throw new Error(
+        `Vendor suborder insert failed for ${vendorId}: ${orderVendorError?.message ?? 'no row returned'}`
+      );
+    }
 
     for (const entry of entries) {
       const { data: product } = await supabase.from('products').select('name').eq('id', entry.p).maybeSingle();
@@ -150,7 +172,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         variantName = variant?.name ?? null;
       }
 
-      await supabase.from('order_items').insert({
+      const { error: itemError } = await supabase.from('order_items').insert({
         order_id: order.id,
         order_vendor_id: orderVendor.id,
         product_id: entry.p,
@@ -161,6 +183,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         quantity: entry.q,
         line_total: entry.pr * entry.q,
       });
+
+      if (itemError) {
+        throw new Error(`Order item insert failed for product ${entry.p}: ${itemError.message}`);
+      }
     }
 
     // Move the vendor's share to their connected Stripe account. If they
