@@ -29,6 +29,19 @@ export async function syncVendorOnboardingStatus(vendor: {
   try {
     const stripe = getStripe();
     const account = await stripe.accounts.retrieve(vendor.stripe_account_id);
+
+    // TEMPORARY diagnostic — remove once the completion condition is confirmed.
+    console.log('[stripe-onboarding]', {
+      id: account.id,
+      details_submitted: account.details_submitted,
+      charges_enabled: account.charges_enabled,
+      payouts_enabled: account.payouts_enabled,
+      capabilities: account.capabilities,
+      disabled_reason: account.requirements?.disabled_reason,
+      currently_due: account.requirements?.currently_due,
+      pending_verification: account.requirements?.pending_verification,
+    });
+
     const isComplete = Boolean(account.details_submitted && account.charges_enabled);
 
     if (isComplete) {
