@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe/client';
+import { canReceiveTransfers } from '@/lib/stripe/vendor-onboarding';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 interface CartEntry {
@@ -42,7 +43,7 @@ async function handleAccountUpdated(account: Stripe.Account) {
   const supabase = createAdminClient();
   await supabase
     .from('vendors')
-    .update({ stripe_onboarding_complete: Boolean(account.details_submitted && account.charges_enabled) })
+    .update({ stripe_onboarding_complete: canReceiveTransfers(account) })
     .eq('stripe_account_id', account.id);
 }
 
