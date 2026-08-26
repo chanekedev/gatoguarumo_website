@@ -58,26 +58,26 @@ begin
   select id into v_relax_id from effects where slug = 'purrfect-relaxation';
 
   insert into products (vendor_id, category_id, name, slug, description, base_price, status, is_featured, avg_rating, review_count, total_sold)
-  values (v_vendor_id, v_catnip_id, 'Mellow Meadow Organic Catnip', 'mellow-meadow-catnip', 'Sun-dried, hand-sifted catnip buds. Slow burn, big chill.', 12.99, 'active', true, 4.8, 214, 900)
+  values (v_vendor_id, v_catnip_id, 'Mellow Meadow Organic Catnip', 'mellow-meadow-catnip', 'Sun-dried, hand-sifted catnip buds. Slow burn, big chill.', 249.00, 'active', true, 4.8, 214, 900)
   returning id into v_product_id;
   insert into product_effects (product_id, effect_id, intensity) values (v_product_id, v_chill_id, 1);
   insert into product_variants (product_id, name, stock_quantity, is_default) values (v_product_id, '1oz Jar', 120, true);
-  insert into product_variants (product_id, name, price_override, stock_quantity) values (v_product_id, '3oz Jar', 29.99, 60);
+  insert into product_variants (product_id, name, price_override, stock_quantity) values (v_product_id, '3oz Jar', 549.00, 60);
 
   insert into products (vendor_id, category_id, name, slug, description, base_price, status, is_featured, avg_rating, review_count, total_sold)
-  values (v_vendor_id, v_blends_id, 'Zoomies Silvervine Blend', 'zoomies-silvervine-blend', 'Silvervine + catnip for cats who need the full send.', 15.50, 'active', true, 4.6, 88, 340)
+  values (v_vendor_id, v_blends_id, 'Zoomies Silvervine Blend', 'zoomies-silvervine-blend', 'Silvervine + catnip for cats who need the full send.', 299.00, 'active', true, 4.6, 88, 340)
   returning id into v_product_id;
   insert into product_effects (product_id, effect_id, intensity) values (v_product_id, v_zoomies_id, 5);
   insert into product_variants (product_id, name, stock_quantity, is_default) values (v_product_id, '1oz Pouch', 80, true);
 
   insert into products (vendor_id, category_id, name, slug, description, base_price, status, is_featured, avg_rating, review_count, total_sold)
-  values (v_vendor_id, v_blends_id, 'Meltdown Valerian Rollies (3-Pack)', 'meltdown-valerian-rollies', 'Valerian root rollies. Not for the faint of heart.', 9.99, 'active', true, 4.9, 340, 1200)
+  values (v_vendor_id, v_blends_id, 'Meltdown Valerian Rollies (3-Pack)', 'meltdown-valerian-rollies', 'Valerian root rollies. Not for the faint of heart.', 189.00, 'active', true, 4.9, 340, 1200)
   returning id into v_product_id;
   insert into product_effects (product_id, effect_id, intensity) values (v_product_id, v_meltdown_id, 4);
   insert into product_variants (product_id, name, stock_quantity, is_default) values (v_product_id, '3-Pack', 200, true);
 
   insert into products (vendor_id, category_id, name, slug, description, base_price, status, is_featured, avg_rating, review_count, total_sold)
-  values (v_vendor_id, v_catnip_id, 'Purr-fect Relaxation Chamomile Blend', 'purrfect-relaxation-chamomile', 'Chamomile-infused catnip for the anxious rescue in your life.', 13.50, 'active', false, 4.7, 52, 140)
+  values (v_vendor_id, v_catnip_id, 'Purr-fect Relaxation Chamomile Blend', 'purrfect-relaxation-chamomile', 'Chamomile-infused catnip for the anxious rescue in your life.', 259.00, 'active', false, 4.7, 52, 140)
   returning id into v_product_id;
   insert into product_effects (product_id, effect_id, intensity) values (v_product_id, v_relax_id, 2);
   insert into product_variants (product_id, name, stock_quantity, is_default) values (v_product_id, '1oz Jar', 90, true);
