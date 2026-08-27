@@ -4,14 +4,20 @@ import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe/client';
 import { canReceiveTransfers } from '@/lib/stripe/vendor-onboarding';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { priceCart, type PricedLine } from '@/lib/queries/cart-pricing';
 import { CURRENCY, SHIPPING_COUNTRIES } from '@/lib/config/locale';
 
+/**
+ * What the checkout session carries: ids and quantities only.
+ *
+ * Prices and vendor ownership are deliberately absent — they are re-read from
+ * the database here, so neither the shopper nor a tampered metadata blob can
+ * influence what a vendor is paid.
+ */
 interface CartEntry {
   p: string; // productId
   v: string | null; // variantId
-  ven: string; // vendorId
   q: number; // quantity
-  pr: number; // unit price
 }
 
 export async function POST(request: Request) {
@@ -126,11 +132,19 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     throw new Error(`Order insert failed: ${orderError?.message ?? 'no row returned'}`);
   }
 
-  const byVendor = new Map<string, CartEntry[]>();
-  for (const entry of cartEntries) {
-    const group = byVendor.get(entry.ven) ?? [];
-    group.push(entry);
-    byVendor.set(entry.ven, group);
+  // Re-price from the database. The vendor split and every payout figure below
+  // derive from these values, never from anything that passed through the
+  // browser.
+  const pricedLines = await priceCart(
+    cartEntries.map((entry) => ({ productId: entry.p, variantId: entry.v, quantity: entry.q })),
+    { client: supabase, enforceAvailability: false }
+  );
+
+  const byVendor = new Map<string, PricedLine[]>();
+  for (const line of pricedLines) {
+    const group = byVendor.get(line.vendorId) ?? [];
+    group.push(line);
+    byVendor.set(line.vendorId, group);
   }
 
   for (const [vendorId, entries] of byVendor) {
@@ -140,7 +154,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       .eq('id', vendorId)
       .maybeSingle();
     const commissionRate = vendor?.commission_rate ?? 0.1;
-    const subtotal = entries.reduce((sum, e) => sum + e.pr * e.q, 0);
+    const subtotal = entries.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
     const commissionAmount = subtotal * commissionRate;
     const payoutAmount = subtotal - commissionAmount;
 
@@ -164,28 +178,21 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       );
     }
 
-    for (const entry of entries) {
-      const { data: product } = await supabase.from('products').select('name').eq('id', entry.p).maybeSingle();
-      let variantName: string | null = null;
-      if (entry.v) {
-        const { data: variant } = await supabase.from('product_variants').select('name').eq('id', entry.v).maybeSingle();
-        variantName = variant?.name ?? null;
-      }
-
+    for (const line of entries) {
       const { error: itemError } = await supabase.from('order_items').insert({
         order_id: order.id,
         order_vendor_id: orderVendor.id,
-        product_id: entry.p,
-        variant_id: entry.v,
-        product_name_snapshot: product?.name ?? 'Product',
-        variant_name_snapshot: variantName,
-        unit_price: entry.pr,
-        quantity: entry.q,
-        line_total: entry.pr * entry.q,
+        product_id: line.productId,
+        variant_id: line.variantId,
+        product_name_snapshot: line.name,
+        variant_name_snapshot: line.variantName,
+        unit_price: line.unitPrice,
+        quantity: line.quantity,
+        line_total: line.unitPrice * line.quantity,
       });
 
       if (itemError) {
-        throw new Error(`Order item insert failed for product ${entry.p}: ${itemError.message}`);
+        throw new Error(`Order item insert failed for product ${line.productId}: ${itemError.message}`);
       }
     }
 

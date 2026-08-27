@@ -4,10 +4,27 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 
+/**
+ * Keeps post-login redirects on this site.
+ *
+ * `next` travels in a URL, so an attacker can mail out
+ * /auth/login?next=https://evil.example and have a genuine login hand the user
+ * straight to a phishing page — with the real domain in the referrer to make it
+ * look legitimate. Only same-site absolute paths are honoured; "//evil.example"
+ * and "https://…" are discarded rather than sanitised.
+ */
+function safeRedirectPath(value: unknown, fallback = '/account'): string {
+  const path = typeof value === 'string' ? value : '';
+  if (!path.startsWith('/') || path.startsWith('//') || path.startsWith('/\\')) {
+    return fallback;
+  }
+  return path;
+}
+
 export async function signIn(formData: FormData) {
   const email = String(formData.get('email') ?? '');
   const password = String(formData.get('password') ?? '');
-  const next = String(formData.get('next') ?? '/account');
+  const next = safeRedirectPath(formData.get('next'));
 
   const supabase = createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });

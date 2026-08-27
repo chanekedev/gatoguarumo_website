@@ -6,7 +6,13 @@ import { createClient } from '@/lib/supabase/server';
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const next = searchParams.get('next') ?? '/';
+  // Same-site paths only: this value comes from a link in an email, so an
+  // attacker-supplied "//evil.example" must not become the post-login landing.
+  const requestedNext = searchParams.get('next') ?? '/';
+  const next =
+    requestedNext.startsWith('/') && !requestedNext.startsWith('//') && !requestedNext.startsWith('/\\')
+      ? requestedNext
+      : '/';
 
   if (code) {
     const supabase = createClient();
