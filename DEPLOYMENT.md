@@ -31,7 +31,21 @@ This app uses **Express accounts** — vendors onboard through a Stripe-hosted f
 
 - **Redirect URLs**: Authentication → URL Configuration → add your production domain (`https://<your-domain>/**`) alongside `localhost` so email confirmation links work in production.
 - **Site URL**: set to your production domain once deployed.
-- Migrations already applied if you followed Steps 1–4 (`001_initial_schema.sql`, `002_grants_and_rls_fixes.sql`) — no further action needed unless you add new ones.
+- **Migrations**: run every file in `supabase/migrations/` in order, in the SQL Editor. Paste the file's *contents*, not its path.
+
+  | File | What it does | Skipping it means |
+  |---|---|---|
+  | `001_initial_schema.sql` | Tables, enums, RLS policies, triggers | Nothing works |
+  | `002_grants_and_rls_fixes.sql` | Grants for `anon`/`authenticated`; breaks an orders↔order_vendors policy recursion | "permission denied for table …" on every read |
+  | `003_mx_locale_defaults.sql` | MX/MXN column defaults | New rows default to US/USD |
+  | `004_service_role_grants.sql` | Grants for `service_role` | Paid checkouts record no order |
+  | `005_privilege_escalation_fixes.sql` | Column-level guards | **Any user can make themselves an admin.** Do not deploy without this |
+
+  Verify 005 applied — this should return four rows:
+
+  ```sql
+  select tgname, tgrelid::regclass from pg_trigger where tgname like 'trg_guard%';
+  ```
 
 ## 4. Deploy to Vercel
 
@@ -43,7 +57,30 @@ This app uses **Express accounts** — vendors onboard through a Stripe-hosted f
 
 ## 5. Post-deploy smoke test
 
+Deploy with Stripe **test** keys first and run through this before switching to live keys — a mistake here costs real money.
+
 - Register a new account, confirm the email link works against the production URL
 - Browse `/shop`, confirm products load
 - Add to cart → checkout → complete a Stripe test payment → confirm the order appears in `/account` and the matching `/vendor/dashboard`
 - Connect Stripe as a vendor, confirm `account.updated` flips onboarding status
+- Confirm the security headers survived the deploy:
+  ```
+  curl -sI https://<your-domain> | grep -iE "content-security|strict-transport|x-frame"
+  ```
+
+## 6. Going live
+
+Only after the smoke test passes:
+
+1. Swap `STRIPE_SECRET_KEY` to the `sk_live_…` key in Vercel.
+2. Create a **separate** webhook endpoint in Stripe's live mode (test-mode endpoints don't carry over) and put its signing secret in `STRIPE_WEBHOOK_SECRET`.
+3. Redeploy, then make one small real purchase and refund it, to confirm the live path end to end.
+
+## 7. Known gaps
+
+Honest list of what is not covered yet:
+
+- **No rate limiting** on login or registration — brute force is possible. Vercel's WAF or an Upstash Redis limiter is the usual fix; worth adding before you have real traffic.
+- **User enumeration**: Supabase's login error distinguishes "no such email" from "wrong password".
+- **No admin UI**: approving vendors and setting commission rates is done in the SQL editor. Migration 005 deliberately blocks vendors from doing it themselves.
+- **Stock is not decremented** on purchase, so overselling is possible.
