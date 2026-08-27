@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { DollarSign, Package, ShoppingBag } from 'lucide-react';
+import { DollarSign, Package, Plus, ShoppingBag } from 'lucide-react';
+import { buttonClasses } from '@/components/ui/button';
 import { getCurrentUser } from '@/lib/queries/auth';
 import { getVendorForOwner } from '@/lib/queries/vendors';
 import { getVendorStats, getOrdersForVendor } from '@/lib/queries/orders';
@@ -76,11 +78,20 @@ export default async function VendorDashboardPage() {
       </div>
 
       <section className="mt-10">
-        <h2 className="mb-4 text-lg font-bold text-ink">Products</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-ink">Products</h2>
+          <Link href="/vendor/products/new" className={buttonClasses('primary', 'sm')}>
+            <Plus className="h-4 w-4" />
+            Add product
+          </Link>
+        </div>
         {products.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-ink/15 p-8 text-center text-ink/50">
-            No products yet.
-          </p>
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-ink/15 p-8 text-center">
+            <p className="text-ink/50">No products yet.</p>
+            <Link href="/vendor/products/new" className={buttonClasses('outline')}>
+              Add your first product
+            </Link>
+          </div>
         ) : (
           <div className="divide-y divide-ink/10 rounded-2xl border border-ink/10">
             {products.map((product) => (
@@ -95,6 +106,12 @@ export default async function VendorDashboardPage() {
                 <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-semibold text-ink/70">
                   {PRODUCT_STATUS_LABELS[product.status] ?? product.status}
                 </span>
+                <Link
+                  href={`/vendor/products/${product.id}/edit`}
+                  className="text-sm font-semibold text-brand-green hover:underline"
+                >
+                  Edit
+                </Link>
               </div>
             ))}
           </div>
